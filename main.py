@@ -448,6 +448,17 @@ with mode_tab2:
         st.subheader("🔍 Hasil Analisis")
         
         if uploaded_file is not None and api_key:
+            # Input chat untuk pertanyaan tambahan
+            st.markdown("#### 💬 Pertanyaan Tambahan (Opsional)")
+            additional_question = st.text_area(
+                "Apa yang ingin Anda tanyakan tentang chart ini?",
+                placeholder="Contoh: Apakah ini waktu yang tepat untuk buy? Bagaimana dengan level support/resistance? Apa strategi trading yang cocok?",
+                help="Tambahkan pertanyaan spesifik yang ingin Anda tanyakan tentang analisis chart ini",
+                key="image_analysis_question"
+            )
+            
+            st.divider()
+            
             if st.button("🚀 Mulai Analisis", type="primary", use_container_width=True):
                 with st.spinner("🔄 Menganalisis chart..."):
                     try:
@@ -468,8 +479,17 @@ with mode_tab2:
                         
                         # Buat prompt berdasarkan pengaturan dengan data real-time
                         prompt_parts = [
-                            "Anda adalah seorang analis cryptocurrency profesional. Analisis gambar chart ini dengan format yang terstruktur:"
+                            "Anda adalah seorang analis cryptocurrency profesional. Analisis gambar chart ini dengan format yang terstruktur:",
+                            "\n\n📊 Template Analisis Chart Pattern:",
+                            "Lihat web trading pattern di web ini: https://medium.com/coinmonks/flag-patterns-9eafb3bdfa54.",
+                            "Analisa gambar nya apakah ada pattern-pattern yang muncul dalam gambar tersebut.",
+                            "Identifikasi chart patterns seperti: Flag, Pennant, Triangle, Head & Shoulders, Double Top/Bottom, Support/Resistance, Trend Lines, dan pattern lainnya."
+                            "Lalu berikan analisis apakah ini waktu yang tepat untuk beli atau jual atau hold? bagaimana dengan level support/ressistance sebelumnya apa strategi trading yang cocok."
                         ]
+                        
+                        # Tambahkan pertanyaan tambahan jika ada
+                        if additional_question.strip():
+                            prompt_parts.append(f"\n\n💬 Pertanyaan Khusus dari User:\n{additional_question}\n\nPastikan untuk menjawab pertanyaan ini dalam analisis Anda.")
                         
                         # Tambahkan data real-time jika tersedia
                         if 'crypto_data' in st.session_state:
@@ -498,6 +518,13 @@ with mode_tab2:
                         prompt_parts.extend([
                             "\nFormat output yang diinginkan:",
                             "🧩 Analisa Teknikal [SYMBOL] ([TIMEFRAME]) — Per [TANGGAL]",
+                            "",
+                            "📈 Chart Pattern Analysis",
+                            "Pattern Teridentifikasi: [NAMA_PATTERN]",
+                            "Deskripsi Pattern: [DETAIL_PATTERN]",
+                            "Validitas Pattern: [TINGKAT_VALIDITAS]",
+                            "Target Price: [TARGET_HARGA]",
+                            "Stop Loss: [LEVEL_STOP_LOSS]",
                             "",
                             "📉 Kondisi Saat Ini",
                             "Harga: [HARGA_SAAT_INI]",
