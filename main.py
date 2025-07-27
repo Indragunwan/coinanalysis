@@ -141,6 +141,12 @@ coincap_api_key = "45ce01ec5f1b5a4969727263cdfb3be193e9482d348cb68331b511557b9d5
 # Konfigurasi Google AI
 genai.configure(api_key=api_key)
 
+# Initialize session state for analysis history
+if 'analysis_history' not in st.session_state:
+    st.session_state.analysis_history = []
+if 'selected_analysis' not in st.session_state:
+    st.session_state.selected_analysis = None
+
 # Sidebar untuk konfigurasi
 with st.sidebar:
     st.header("⚙️ Konfigurasi")
@@ -151,14 +157,47 @@ with st.sidebar:
     
     st.divider()
     
+    # Riwayat Analisis
+    st.subheader("📚 Riwayat Analisis")
+    
+    if st.session_state.analysis_history:
+        st.write(f"💾 {len(st.session_state.analysis_history)} analisis tersimpan")
+        
+        # Display analysis history
+        for i, analysis in enumerate(reversed(st.session_state.analysis_history)):
+            actual_index = len(st.session_state.analysis_history) - 1 - i
+            
+            # Create a preview title
+            timestamp = datetime.fromisoformat(analysis['timestamp'])
+            preview_title = f"📊 {timestamp.strftime('%d/%m %H:%M')}"
+            
+            # Add symbol if available
+            if 'symbol' in analysis:
+                preview_title += f" - {analysis['symbol']}"
+            
+            # Create button for each analysis
+            if st.button(preview_title, key=f"analysis_{actual_index}", use_container_width=True):
+                st.session_state.selected_analysis = analysis
+        
+        # Clear history button
+        if st.button("🗑️ Hapus Semua Riwayat", type="secondary", use_container_width=True):
+            st.session_state.analysis_history = []
+            st.session_state.selected_analysis = None
+            st.rerun()
+    else:
+        st.info("📝 Belum ada analisis tersimpan")
+        st.caption("Analisis akan muncul di sini setelah Anda menyimpannya")
+    
+    st.divider()
+    
     # Input Symbol Cryptocurrency
     st.subheader("💰 Data Cryptocurrency")
     
     crypto_symbol = st.text_input(
         "Symbol Cryptocurrency:",
         value="",
-        placeholder="Masukkan nama atau singkatan (contoh: bitcoin, BTC, ethereum, ETH)",
-        help="Masukkan nama lengkap atau singkatan koin (contoh: bitcoin, BTC, ethereum, ETH)"
+        placeholder="Masukkan nama lengkap (contoh: bitcoin, ethereum, solana)",
+        help="Masukkan nama lengkap koin (contoh: bitcoin, ethereum, solana)"
     )
     
     if crypto_symbol:
@@ -237,36 +276,75 @@ with st.sidebar:
     include_recommendations = st.checkbox("Rekomendasi Trading", value=True)
 
 # Main content area
-# Tab utama untuk mode aplikasi
-mode_tab1, mode_tab2 = st.tabs(["💬 Chat Mode", "📊 Image Analysis Mode"])
-
-with mode_tab1:
-    st.header("💬 Chat dengan AI")
+# Check if there's a selected analysis to display
+if st.session_state.selected_analysis:
+    st.header("📋 Preview Analisis Tersimpan")
     
-    if api_key:
-        # Input coin untuk chat
-        col1, col2 = st.columns([2, 1])
-        
+    analysis = st.session_state.selected_analysis
+    timestamp = datetime.fromisoformat(analysis['timestamp'])
+    
+    # Display analysis info
+    col1, col2, col3 = st.columns([2, 1, 1])
+    with col1:
+        st.write(f"📅 **Tanggal:** {timestamp.strftime('%d %B %Y, %H:%M:%S')}")
+    with col2:
+        st.write(f"📊 **Level:** {analysis.get('settings', {}).get('depth', 'N/A')}")
+    with col3:
+        if st.button("❌ Tutup Preview"):
+            st.session_state.selected_analysis = None
+            st.rerun()
+    
+    st.divider()
+    
+    # Display the analysis content
+    st.markdown('<div class="analysis-box">', unsafe_allow_html=True)
+    st.markdown("### 📊 Hasil Analisis")
+    st.markdown(analysis['analysis'])
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Display settings used
+    with st.expander("⚙️ Pengaturan yang Digunakan"):
+        settings = analysis.get('settings', {})
+        col1, col2 = st.columns(2)
         with col1:
-            chat_crypto_symbol = st.text_input(
-                "🪙 Pilih Coin untuk Analisis Chat:",
-                value="",
-                placeholder="Masukkan nama atau singkatan (contoh: bitcoin, BTC, ethereum, ETH)",
-                help="Masukkan nama lengkap atau singkatan koin yang ingin dianalisis dalam chat",
-                key="chat_crypto_input"
-            )
-        
+            st.write(f"📊 Kedalaman: {settings.get('depth', 'N/A')}")
+            st.write(f"💭 Sentimen: {'✅' if settings.get('sentiment') else '❌'}")
         with col2:
-            if st.button("📊 Load Data", type="primary", disabled=not chat_crypto_symbol):
-                if chat_crypto_symbol:
-                    with st.spinner("📊 Mengambil data real-time..."):
-                        chat_crypto_data = get_crypto_data(chat_crypto_symbol, coincap_api_key)
-                        
-                        if chat_crypto_data:
-                            st.session_state.chat_crypto_data = chat_crypto_data
-                            st.success(f"✅ Data {chat_crypto_data['symbol']} berhasil dimuat untuk chat")
-                        else:
-                            st.error("❌ Gagal mengambil data cryptocurrency")
+            st.write(f"📈 Pola Chart: {'✅' if settings.get('patterns') else '❌'}")
+            st.write(f"📉 Indikator: {'✅' if settings.get('indicators') else '❌'}")
+    
+    st.divider()
+else:
+    # Tab utama untuk mode aplikasi
+    mode_tab1, mode_tab2 = st.tabs(["💬 Chat Mode", "📊 Image Analysis Mode"])
+
+    with mode_tab1:
+        st.header("💬 Chat dengan AI")
+        
+        if api_key:
+            # Input coin untuk chat
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
+                chat_crypto_symbol = st.text_input(
+                    "🪙 Pilih Coin untuk Analisis Chat:",
+                    value="",
+                    placeholder="Masukkan nama lengkap koin (contoh: bitcoin,  ethereum, solana)",
+                    help="Masukkan nama lengkap  koin yang ingin dianalisis dalam chat",
+                    key="chat_crypto_input"
+                )
+            
+            with col2:
+                if st.button("📊 Load Data", type="primary", disabled=not chat_crypto_symbol):
+                    if chat_crypto_symbol:
+                        with st.spinner("📊 Mengambil data real-time..."):
+                            chat_crypto_data = get_crypto_data(chat_crypto_symbol, coincap_api_key)
+                            
+                            if chat_crypto_data:
+                                st.session_state.chat_crypto_data = chat_crypto_data
+                                st.success(f"✅ Data {chat_crypto_data['symbol']} berhasil dimuat untuk chat")
+                            else:
+                                st.error("❌ Gagal mengambil data cryptocurrency")
         
         # Display current crypto data for chat if available
         if 'chat_crypto_data' in st.session_state:
@@ -375,227 +453,363 @@ with mode_tab1:
         if st.button("🗑️ Clear Chat", key="clear_chat"):
             st.session_state.messages = []
             st.rerun()
-    else:
-        st.warning("⚠️ Masukkan API Key di sidebar untuk menggunakan chat")
+        
+        if not api_key:
+            st.warning("⚠️ Masukkan API Key di sidebar untuk menggunakan chat")
 
-with mode_tab2:
-    st.header("📊 Analisis Gambar Chart")
+    with mode_tab2:
+        st.header("📊 Analisis Gambar Chart")
+        
+        col1, col2 = st.columns([1, 1])
     
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        st.subheader("📤 Upload Chart")
-        
-        # Tab untuk berbagai metode input
-        tab1, tab2 = st.tabs(["📁 Upload File", "📋 Paste dari Clipboard"])
-        
-        uploaded_file = None
-        
-        with tab1:
-            uploaded_file = st.file_uploader(
-                "Pilih file gambar chart:",
-                type=['png', 'jpg', 'jpeg', 'webp'],
-                help="Drag & drop file atau klik untuk browse"
-            )
-        
-        with tab2:
-            st.info("💡 **Cara paste gambar dari clipboard:**")
-            st.markdown("""
-            1. Screenshot chart TradingView (Ctrl+Shift+S atau Print Screen)
-            2. Klik tombol 'Paste Image from Clipboard' di bawah
-            3. Gambar akan otomatis ter-paste dari clipboard
-            """)
+        with col1:
+            st.subheader("📤 Upload Chart")
             
-            # Tombol paste gambar dari clipboard
-            pasted_image = paste_image_button(
-                label="📋 Paste Image from Clipboard",
-                key="paste_image",
-                errors="raise"
-            )
+            # Tab untuk berbagai metode input
+            tab1, tab2 = st.tabs(["📁 Upload File", "📋 Paste dari Clipboard"])
             
-            if pasted_image is not None:
-                try:
-                    # PasteResult adalah PIL Image object langsung
-                    if pasted_image.image_data is not None:
-                        # Simpan sebagai session state untuk digunakan
-                        st.session_state.pasted_image = pasted_image.image_data
-                        uploaded_file = "pasted_image"  # Flag untuk menandai gambar dari paste
-                        st.success("✅ Gambar berhasil di-paste dari clipboard!")
-                    else:
-                        st.error("❌ Tidak ada data gambar yang ditemukan")
-                except Exception as e:
-                    st.error(f"❌ Error memproses gambar: {e}")
-                    st.info("💡 Pastikan Anda copy gambar yang valid ke clipboard")
-        
-        # Preview gambar
-        if uploaded_file is not None:
-            try:
-                if uploaded_file == "pasted_image" and "pasted_image" in st.session_state:
-                    # Gunakan gambar dari paste
-                    image = st.session_state.pasted_image
-                    st.image(image, caption="Chart yang akan dianalisis", use_container_width=True)
-                    st.info(f"📏 Dimensi: {image.size[0]} x {image.size[1]} pixels")
-                else:
-                    # Gunakan gambar dari upload
-                    image = Image.open(uploaded_file)
-                    st.image(image, caption="Chart yang akan dianalisis", use_container_width=True)
-                    st.info(f"📏 Dimensi: {image.size[0]} x {image.size[1]} pixels")
+            uploaded_file = None
+            
+            with tab1:
+                uploaded_file = st.file_uploader(
+                    "Pilih file gambar chart:",
+                    type=['png', 'jpg', 'jpeg', 'webp'],
+                    help="Drag & drop file atau klik untuk browse"
+                )
+            
+            with tab2:
+                st.info("💡 **Cara paste gambar dari clipboard:**")
+                st.markdown("""
+                1. Screenshot chart TradingView (Ctrl+Shift+S atau Print Screen)
+                2. Klik tombol 'Paste Image from Clipboard' di bawah
+                3. Gambar akan otomatis ter-paste dari clipboard
+                """)
                 
-            except Exception as e:
-                st.error(f"❌ Error membuka gambar: {e}")
-
-    with col2:
-        st.subheader("🔍 Hasil Analisis")
-        
-        if uploaded_file is not None and api_key:
-            # Input chat untuk pertanyaan tambahan
-            st.markdown("#### 💬 Pertanyaan Tambahan (Opsional)")
-            additional_question = st.text_area(
-                "Apa yang ingin Anda tanyakan tentang chart ini?",
-                placeholder="Contoh: Apakah ini waktu yang tepat untuk buy? Bagaimana dengan level support/resistance? Apa strategi trading yang cocok?",
-                help="Tambahkan pertanyaan spesifik yang ingin Anda tanyakan tentang analisis chart ini",
-                key="image_analysis_question"
-            )
-            
-            st.divider()
-            
-            if st.button("🚀 Mulai Analisis", type="primary", use_container_width=True):
-                with st.spinner("🔄 Menganalisis chart..."):
+                # Tombol paste gambar dari clipboard
+                pasted_image = paste_image_button(
+                    label="📋 Paste Image from Clipboard",
+                    key="paste_image",
+                    errors="raise"
+                )
+                
+                if pasted_image is not None:
                     try:
-                        # Ambil gambar berdasarkan sumber
-                        if uploaded_file == "pasted_image" and "pasted_image" in st.session_state:
-                            # Gunakan gambar dari paste
-                            image = st.session_state.pasted_image
+                        # PasteResult adalah PIL Image object langsung
+                        if pasted_image.image_data is not None:
+                            # Simpan sebagai session state untuk digunakan
+                            st.session_state.pasted_image = pasted_image.image_data
+                            uploaded_file = "pasted_image"  # Flag untuk menandai gambar dari paste
+                            st.success("✅ Gambar berhasil di-paste dari clipboard!")
                         else:
-                            # Reset file pointer jika perlu
-                            if hasattr(uploaded_file, 'seek'):
-                                uploaded_file.seek(0)
-                            # Baca gambar dari upload
-                            image = Image.open(uploaded_file)
-                        
-                        # Konversi ke RGB jika perlu
-                        if image.mode != 'RGB':
-                            image = image.convert('RGB')
-                        
-                        # Buat prompt berdasarkan pengaturan dengan data real-time
-                        prompt_parts = [
-                            "Anda adalah seorang analis cryptocurrency profesional. Analisis gambar chart ini dengan format yang terstruktur:",
-                            "\n\n📊 Template Analisis Chart Pattern:",
-                            "Lihat web trading pattern di web ini: https://medium.com/coinmonks/flag-patterns-9eafb3bdfa54.",
-                            "Analisa gambar nya apakah ada pattern-pattern yang muncul dalam gambar tersebut.",
-                            "Identifikasi chart patterns seperti: Flag, Pennant, Triangle, Head & Shoulders, Double Top/Bottom, Support/Resistance, Trend Lines, dan pattern lainnya."
-                            "Lalu berikan analisis apakah ini waktu yang tepat untuk beli atau jual atau hold? bagaimana dengan level support/ressistance sebelumnya apa strategi trading yang cocok."
-                        ]
-                        
-                        # Tambahkan pertanyaan tambahan jika ada
-                        if additional_question.strip():
-                            prompt_parts.append(f"\n\n💬 Pertanyaan Khusus dari User:\n{additional_question}\n\nPastikan untuk menjawab pertanyaan ini dalam analisis Anda.")
-                        
-                        # Tambahkan data real-time jika tersedia
-                        if 'crypto_data' in st.session_state:
-                            data = st.session_state.crypto_data
-                            prompt_parts.append(f"""
-                            
-                            Data Real-time {data['symbol']}:
-                            - Harga saat ini: ${data['price']:.4f}
-                            - Perubahan 24h: {data['change_24h']:.2f}%
-                            - Market Cap: {format_currency(data['market_cap'])}
-                            - Volume 24h: {format_currency(data['volume_24h'])}
-                            - Ranking: #{data['rank']}
-                            """)
-                        
-                        prompt_parts.append("\nFokus pada:")
-                        
-                        if include_patterns:
-                            prompt_parts.append("- Pola chart dan formasi teknikal")
-                        if include_indicators:
-                            prompt_parts.append("- Indikator teknikal yang terlihat")
-                        if include_sentiment:
-                            prompt_parts.append("- Sentimen pasar berdasarkan price action")
-                        if include_recommendations:
-                            prompt_parts.append("- Rekomendasi entry/exit dan risk management")
-                        
-                        prompt_parts.extend([
-                            "\nFormat output yang diinginkan:",
-                            "🧩 Analisa Teknikal [SYMBOL] ([TIMEFRAME]) — Per [TANGGAL]",
-                            "",
-                            "📈 Chart Pattern Analysis",
-                            "Pattern Teridentifikasi: [NAMA_PATTERN]",
-                            "Deskripsi Pattern: [DETAIL_PATTERN]",
-                            "Validitas Pattern: [TINGKAT_VALIDITAS]",
-                            "Target Price: [TARGET_HARGA]",
-                            "Stop Loss: [LEVEL_STOP_LOSS]",
-                            "",
-                            "📉 Kondisi Saat Ini",
-                            "Harga: [HARGA_SAAT_INI]",
-                            "Tren: [ANALISIS_TREND]",
-                            "[DESKRIPSI_KONDISI_PASAR]",
-                            "",
-                            "🔍 Level Penting",
-                            "Support Terdekat: [LEVEL_SUPPORT]",
-                            "Resistance Kuat: [LEVEL_RESISTANCE]",
-                            "Level Supply Kunci: [LEVEL_KUNCI]",
-                            "",
-                            "📊 Strategi Trading Aman",
-                            "🚫 BELI (Long Position)?",
-                            "[ANALISIS_LONG_POSITION]",
-                            "",
-                            "✅ JUAL (Short Position)?",
-                            "[ANALISIS_SHORT_POSITION]",
-                            "",
-                            "⏸️ HOLD?",
-                            "[ANALISIS_HOLD_STRATEGY]",
-                            "",
-                            "🧠 Strategi Rekomendasi: \"[NAMA_STRATEGI]\"",
-                            "[DETAIL_STRATEGI_DAN_INDIKATOR]",
-                            "",
-                            "⚠️ Kesimpulan & Saran",
-                            "[KESIMPULAN_SINGKAT_DAN_ACTIONABLE]",
-                            "",
-                            "Berikan analisis yang objektif, profesional, dan mudah dipahami dengan emoji yang sesuai."
-                        ])
-                        
-                        prompt = "\n".join(prompt_parts)
-                        
-                        # Analisis dengan Gemini
-                        model = genai.GenerativeModel('gemini-1.5-flash')
-                        response = model.generate_content([prompt, image])
-                        
-                        # Tampilkan hasil
-                        st.markdown('<div class="analysis-box">', unsafe_allow_html=True)
-                        st.markdown("### 📊 Hasil Analisis Chart")
-                        st.markdown(response.text)
-                        st.markdown('</div>', unsafe_allow_html=True)
-                        
-                        # Timestamp
-                        st.caption(f"⏰ Analisis dilakukan pada: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-                        
-                        # Tombol untuk save hasil
-                        if st.button("💾 Simpan Analisis"):
-                            analysis_data = {
-                                "timestamp": datetime.now().isoformat(),
-                                "analysis": response.text,
-                                "settings": {
-                                    "depth": analysis_depth,
-                                    "sentiment": include_sentiment,
-                                    "patterns": include_patterns,
-                                    "indicators": include_indicators,
-                                    "recommendations": include_recommendations
-                                }
-                            }
-                            
-                            st.download_button(
-                                label="📥 Download Hasil (JSON)",
-                                data=json.dumps(analysis_data, indent=2, ensure_ascii=False),
-                                file_name=f"chart_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                                mime="application/json"
-                            )
-                        
+                            st.error("❌ Tidak ada data gambar yang ditemukan")
                     except Exception as e:
-                        st.error(f"❌ Error dalam analisis: {e}")
-                        st.info("💡 Pastikan gambar valid dan API key benar")
+                        st.error(f"❌ Error memproses gambar: {e}")
+                        st.info("💡 Pastikan Anda copy gambar yang valid ke clipboard")
         
-        elif not api_key:
+            # Preview gambar
+            if uploaded_file is not None:
+                try:
+                    if uploaded_file == "pasted_image" and "pasted_image" in st.session_state:
+                        # Gunakan gambar dari paste
+                        image = st.session_state.pasted_image
+                        st.image(image, caption="Chart yang akan dianalisis", use_container_width=True)
+                        st.info(f"📏 Dimensi: {image.size[0]} x {image.size[1]} pixels")
+                    else:
+                        # Gunakan gambar dari upload
+                        image = Image.open(uploaded_file)
+                        st.image(image, caption="Chart yang akan dianalisis", use_container_width=True)
+                        st.info(f"📏 Dimensi: {image.size[0]} x {image.size[1]} pixels")
+                    
+                except Exception as e:
+                    st.error(f"❌ Error membuka gambar: {e}")
+
+        with col2:
+             st.subheader("🔍 Hasil Analisis")
+             
+             if uploaded_file is not None and api_key:
+                 # Input chat untuk pertanyaan tambahan
+                 st.markdown("#### 💬 Pertanyaan Tambahan (Opsional)")
+                 additional_question = st.text_area(
+                     "Apa yang ingin Anda tanyakan tentang chart ini?",
+                     placeholder="Contoh: Apakah ini waktu yang tepat untuk buy? Bagaimana dengan level support/resistance? Apa strategi trading yang cocok?",
+                     help="Tambahkan pertanyaan spesifik yang ingin Anda tanyakan tentang analisis chart ini",
+                     key="image_analysis_question"
+                 )
+                 
+                 st.divider()
+                 
+                 if st.button("🚀 Mulai Analisis", type="primary", use_container_width=True):
+                     with st.spinner("🔄 Menganalisis chart..."):
+                         try:
+                             # Ambil gambar berdasarkan sumber
+                             if uploaded_file == "pasted_image" and "pasted_image" in st.session_state:
+                                 # Gunakan gambar dari paste
+                                 image = st.session_state.pasted_image
+                             else:
+                                 # Reset file pointer jika perlu
+                                 if hasattr(uploaded_file, 'seek'):
+                                     uploaded_file.seek(0)
+                                 # Baca gambar dari upload
+                                 image = Image.open(uploaded_file)
+                             
+                             # Konversi ke RGB jika perlu
+                             if image.mode != 'RGB':
+                                 image = image.convert('RGB')
+                             
+                             # Buat prompt berdasarkan pengaturan dengan data real-time
+                             prompt_parts = [
+                                 "Anda adalah seorang analis cryptocurrency profesional. Analisis gambar chart ini dengan format yang terstruktur:",
+                                 "\n\n📊 Template Analisis Chart Pattern:",
+                                 "Lihat web trading pattern di web ini: https://medium.com/coinmonks/flag-patterns-9eafb3bdfa54.",
+                                 "Analisa gambar nya apakah ada pattern-pattern yang muncul dalam gambar tersebut.",
+                                 "Identifikasi chart patterns seperti: Flag, Pennant, Triangle, Head & Shoulders, Double Top/Bottom, Support/Resistance, Trend Lines, dan pattern lainnya."
+                                 "Lalu berikan analisis apakah ini waktu yang tepat untuk beli atau jual atau hold? bagaimana dengan level support/ressistance sebelumnya apa strategi trading yang cocok."
+                             ]
+                       
+                             # Tambahkan pertanyaan tambahan jika ada
+                             if additional_question.strip():
+                                 prompt_parts.append(f"\n\n💬 Pertanyaan Khusus dari User:\n{additional_question}\n\nPastikan untuk menjawab pertanyaan ini dalam analisis Anda.")
+                             
+                             # Tambahkan data real-time jika tersedia
+                             if 'crypto_data' in st.session_state:
+                                 data = st.session_state.crypto_data
+                                 prompt_parts.append(f"""
+                                 
+                                 Data Real-time {data['symbol']}:
+                                 - Harga saat ini: ${data['price']:.4f}
+                                 - Perubahan 24h: {data['change_24h']:.2f}%
+                                 - Market Cap: {format_currency(data['market_cap'])}
+                                 - Volume 24h: {format_currency(data['volume_24h'])}
+                                 - Ranking: #{data['rank']}
+                                 """)
+                             
+                             prompt_parts.append("\nFokus pada:")
+                             
+                             if include_patterns:
+                                 prompt_parts.append("- Pola chart dan formasi teknikal")
+                             if include_indicators:
+                                 prompt_parts.append("- Indikator teknikal yang terlihat")
+                             if include_sentiment:
+                                 prompt_parts.append("- Sentimen pasar berdasarkan price action")
+                             if include_recommendations:
+                                 prompt_parts.append("- Rekomendasi entry/exit dan risk management")
+                             
+                             # Sesuaikan format output berdasarkan analysis_depth
+                             if analysis_depth == "Basic":
+                                 format_template = [
+                                     "\nFormat output yang diinginkan (Basic):",
+                                     "✅ Analisa Chart [SYMBOL] ([TIMEFRAME]) – Per [TANGGAL]",
+                                     "Pair: [SYMBOL] | Timeframe: [TIMEFRAME] | Exchange: [EXCHANGE]",
+                                     "",
+                                     "🧠 🔍 Ringkasan Analisa Teknikal:",
+                                     "🟦 1. Trend & Price Action",
+                                     "Harga saat ini: $[HARGA_SAAT_INI]",
+                                     "[ANALISIS_TREND_DAN_PRICE_ACTION]",
+                                     "",
+                                     "🔺 2. Chart Pattern",
+                                     "[ANALISIS_CHART_PATTERN]",
+                                     "",
+                                     "📉 Indikator Teknis",
+                                     "📍 RSI (Relative Strength Index)",
+                                     "RSI: [NILAI_RSI] ➜ [INTERPRETASI_RSI]",
+                                     "",
+                                     "📍 MACD",
+                                     "MACD line ([NILAI_MACD]) [POSISI_TERHADAP_SIGNAL]",
+                                     "Histogram [KONDISI_HISTOGRAM] → [INTERPRETASI_MOMENTUM]",
+                                     "",
+                                     "🔑 Zona Support dan Resistance",
+                                     "Level | Keterangan",
+                                     "[LEVEL_SUPPORT] | Support jangka pendek (valid)",
+                                     "[LEVEL_RESISTANCE] | Resistance kuat / Supply Zone",
+                                     "[LEVEL_MINOR] | Minor resistance (pivot lokal)",
+                                     "",
+                                     "🎯 Strategi Rekomendasi (Scalper & Swing)",
+                                     "✅ Untuk Scalper:",
+                                     "Buy Entry: [ENTRY_SCALP] (area support)",
+                                     "Target Take Profit (TP): [TP_SCALP]",
+                                     "Stop-Loss (SL): [SL_SCALP] di bawah swing low",
+                                     "",
+                                     "📈 Untuk Swing Trader:",
+                                     "Entry hanya jika breakout valid di atas [BREAKOUT_LEVEL] dengan volume meningkat.",
+                                     "Target swing: [TARGET_SWING] (zona distribusi lama)",
+                                     "SL: di bawah [SL_SWING] (struktur bawah patah)",
+                                     "",
+                                     "⚖️ Apakah Harga Sudah Ketinggian?",
+                                     "[ANALISIS_VALUASI_HARGA]",
+                                     "",
+                                     "📌 Rangkuman Rekomendasi:",
+                                     "Saran | Penjelasan",
+                                     "🔄 Hold | [KONDISI_HOLD]",
+                                     "📉 Sell | [KONDISI_SELL]",
+                                     "🛒 Buy | [KONDISI_BUY]",
+                                     "",
+                                     "📌 Indikator Lanjutan yang Perlu Dipantau:",
+                                     "Volume Breakout (Volume Profile)",
+                                     "Open Interest (OI) & Funding Rate (untuk melihat tekanan long vs short)",
+                                     "Divergence RSI / MACD saat harga uji support"
+                                 ]
+                             elif analysis_depth == "Intermediate":
+                                 format_template = [
+                                     "\nFormat output yang diinginkan (Intermediate):",
+                                     "🧩 Analisa Teknikal [SYMBOL] ([TIMEFRAME]) — Per [TANGGAL]",
+                                     "",
+                                     "📈 Chart Pattern Analysis",
+                                     "Pattern Teridentifikasi: [NAMA_PATTERN]",
+                                     "Deskripsi Pattern: [DETAIL_PATTERN]",
+                                     "Validitas Pattern: [TINGKAT_VALIDITAS]",
+                                     "",
+                                     "📉 Kondisi Saat Ini",
+                                     "Harga: [HARGA_SAAT_INI]",
+                                     "Tren: [ANALISIS_TREND]",
+                                     "[DESKRIPSI_KONDISI_PASAR]",
+                                     "",
+                                     "🔍 Level Penting",
+                                     "Support Terdekat: [LEVEL_SUPPORT]",
+                                     "Resistance Kuat: [LEVEL_RESISTANCE]",
+                                     "Level Supply Kunci: [LEVEL_KUNCI]",
+                                     "",
+                                     "📊 Strategi Trading Aman",
+                                     "🚫 BELI (Long Position)?",
+                                     "[ANALISIS_LONG_POSITION]",
+                                     "",
+                                     "✅ JUAL (Short Position)?",
+                                     "[ANALISIS_SHORT_POSITION]",
+                                     "",
+                                     "⏸️ HOLD?",
+                                     "[ANALISIS_HOLD_STRATEGY]",
+                                     "",
+                                     "🧠 Strategi Rekomendasi: \"[NAMA_STRATEGI]\"",
+                                     "[DETAIL_STRATEGI_DAN_INDIKATOR]",
+                                     "",
+                                     "⚠️ Kesimpulan & Saran",
+                                     "[KESIMPULAN_SINGKAT_DAN_ACTIONABLE]"
+                                 ]
+                             else:  # Advanced
+                                 format_template = [
+                                     "\nFormat output yang diinginkan (Advanced):",
+                                     "🧩 Analisa Teknikal [SYMBOL] ([TIMEFRAME]) — Per [TANGGAL]",
+                                     "",
+                                     "📈 Chart Pattern Analysis",
+                                     "Pattern Teridentifikasi: [NAMA_PATTERN]",
+                                     "Deskripsi Pattern: [DETAIL_PATTERN]",
+                                     "Validitas Pattern: [TINGKAT_VALIDITAS]",
+                                     "Target Price: [TARGET_HARGA]",
+                                     "Stop Loss: [LEVEL_STOP_LOSS]",
+                                     "",
+                                     "📉 Kondisi Saat Ini",
+                                     "Harga: [HARGA_SAAT_INI]",
+                                     "Tren: [ANALISIS_TREND]",
+                                     "[DESKRIPSI_KONDISI_PASAR]",
+                                     "",
+                                     "🔍 Level Penting",
+                                     "Support Terdekat: [LEVEL_SUPPORT]",
+                                     "Resistance Kuat: [LEVEL_RESISTANCE]",
+                                     "Level Supply Kunci: [LEVEL_KUNCI]",
+                                     "",
+                                     "📊 Indikator Teknikal",
+                                     "RSI: [NILAI_RSI] - [INTERPRETASI]",
+                                     "MACD: [NILAI_MACD] - [INTERPRETASI]",
+                                     "Volume: [ANALISIS_VOLUME]",
+                                     "Moving Averages: [ANALISIS_MA]",
+                                     "",
+                                     "📊 Strategi Trading Aman",
+                                     "🚫 BELI (Long Position)?",
+                                     "[ANALISIS_LONG_POSITION]",
+                                     "",
+                                     "✅ JUAL (Short Position)?",
+                                     "[ANALISIS_SHORT_POSITION]",
+                                     "",
+                                     "⏸️ HOLD?",
+                                     "[ANALISIS_HOLD_STRATEGY]",
+                                     "",
+                                     "🧠 Strategi Rekomendasi: \"[NAMA_STRATEGI]\"",
+                                     "[DETAIL_STRATEGI_DAN_INDIKATOR]",
+                                     "",
+                                     "⚠️ Risk Management",
+                                     "Position Size: [UKURAN_POSISI]",
+                                     "Risk/Reward Ratio: [RATIO_RR]",
+                                     "Time Horizon: [WAKTU_TRADING]",
+                                     "",
+                                     "⚠️ Kesimpulan & Saran",
+                                     "[KESIMPULAN_SINGKAT_DAN_ACTIONABLE]"
+                                 ]
+                             
+                             prompt_parts.extend(format_template)
+                             prompt_parts.append("")
+                             prompt_parts.append("Berikan analisis yang objektif, profesional, dan mudah dipahami dengan emoji yang sesuai.")
+                             
+                             prompt = "\n".join(prompt_parts)
+                             
+                             # Analisis dengan Gemini
+                             model = genai.GenerativeModel('gemini-1.5-flash')
+                             response = model.generate_content([prompt, image])
+                             
+                             # Tampilkan hasil
+                             st.markdown('<div class="analysis-box">', unsafe_allow_html=True)
+                             st.markdown("### 📊 Hasil Analisis Chart")
+                             st.markdown(response.text)
+                             st.markdown('</div>', unsafe_allow_html=True)
+                             
+                             # Timestamp
+                             st.caption(f"⏰ Analisis dilakukan pada: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                             
+                             # Tombol untuk save hasil
+                             col1, col2 = st.columns(2)
+                             
+                             with col1:
+                                 if st.button("💾 Simpan ke Riwayat", type="primary", use_container_width=True):
+                                     # Get symbol from crypto data if available
+                                     symbol = None
+                                     if 'crypto_data' in st.session_state:
+                                         symbol = st.session_state.crypto_data.get('symbol')
+                                     
+                                     analysis_data = {
+                                         "timestamp": datetime.now().isoformat(),
+                                         "analysis": response.text,
+                                         "symbol": symbol,
+                                         "settings": {
+                                             "depth": analysis_depth,
+                                             "sentiment": include_sentiment,
+                                             "patterns": include_patterns,
+                                             "indicators": include_indicators,
+                                             "recommendations": include_recommendations
+                                         }
+                                     }
+                                     
+                                     # Add to session state history
+                                     st.session_state.analysis_history.append(analysis_data)
+                                     st.success("✅ Analisis berhasil disimpan ke riwayat!")
+                                     st.balloons()
+                                     # Refresh halaman untuk update sidebar
+                                     st.rerun()
+                             
+                             with col2:
+                                 # Download button
+                                 analysis_data_download = {
+                                     "timestamp": datetime.now().isoformat(),
+                                     "analysis": response.text,
+                                     "settings": {
+                                         "depth": analysis_depth,
+                                         "sentiment": include_sentiment,
+                                         "patterns": include_patterns,
+                                         "indicators": include_indicators,
+                                         "recommendations": include_recommendations
+                                     }
+                                 }
+                                 
+                                 st.download_button(
+                                     label="📥 Download JSON",
+                                     data=json.dumps(analysis_data_download, indent=2, ensure_ascii=False),
+                                     file_name=f"chart_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                                     mime="application/json",
+                                     use_container_width=True
+                                 )
+                             
+                         except Exception as e:
+                             st.error(f"❌ Error dalam analisis: {e}")
+                             st.info("💡 Pastikan gambar valid dan API key benar")
+        
+        if not api_key:
             st.warning("⚠️ Masukkan API Key di sidebar untuk memulai analisis")
         else:
             st.info("📤 Upload gambar chart untuk memulai analisis")
