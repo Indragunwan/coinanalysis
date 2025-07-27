@@ -103,7 +103,8 @@ def format_currency(value):
 st.set_page_config(
     page_title="TradingView Chart Analyzer",
     page_icon="📈",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
 # CSS untuk styling
@@ -267,7 +268,7 @@ with st.sidebar:
     analysis_depth = st.selectbox(
         "Kedalaman Analisis:",
         ["Basic", "Intermediate", "Advanced"],
-        index=1
+        index=2
     )
     
     include_sentiment = st.checkbox("Analisis Sentimen", value=True)
